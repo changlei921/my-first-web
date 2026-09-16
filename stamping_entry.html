@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>衝壓產線不良數據登記</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 15px; background-color: #f4f6f9; color: #333; margin: 0; }
+        .card { background: #fff; padding: 18px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); max-width: 480px; margin: 0 auto; }
+        h2 { text-align: center; color: #1a56db; margin-top: 0; margin-bottom: 15px; font-size: 20px; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 14px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+        .btn-submit { width: 100%; padding: 12px; background: #1a56db; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; margin-top: 10px; cursor: pointer; }
+        .btn-export { width: 100%; padding: 12px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; margin-top: 10px; cursor: pointer; }
+        .btn-clear { width: 100%; padding: 10px; background: #ef4444; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; margin-top: 8px; cursor: pointer; }
+        .btn-del-item { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: center; vertical-align: middle; }
+        th { background-color: #f1f5f9; }
+        .count-tag { text-align: center; margin-top: 10px; font-weight: bold; color: #4b5563; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>📱 衝壓產線不良登記</h2>
+        <form id="defectForm">
+            <div class="form-group">
+                <label>日期 (Date)</label>
+                <input type="date" id="date" required>
+            </div>
+            <div class="form-group">
+                <label>班別 (Shift)</label>
+                <select id="shift" required>
+                    <option value="早班">早班</option>
+                    <option value="夜班">夜班</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>機箱型號 (Model)</label>
+                <select id="model" required>
+                    <option value="D14 SFF 主板支架">D14 SFF 主板支架</option>
+                    <option value="D14 MT 側板">D14 MT 側板</option>
+                    <option value="Donington 風扇支架">Donington 風扇支架</option>
+                    <option value="Citadel 上蓋">Citadel 上蓋</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>不良項目 (Defect Type)</label>
+                <select id="defectType" required>
+                    <option value="連續壓痕 (Scratch/Impression)">連續壓痕 (Scratch/Impression)</option>
+                    <option value="邊角毛刺 (Burr)">邊角毛刺 (Burr)</option>
+                    <option value="沖孔偏移 (Hole Offset)">沖孔偏移 (Hole Offset)</option>
+                    <option value="折彎角度偏差 (Bending Angle Error)">折彎角度偏差 (Bending Angle Error)</option>
+                    <option value="抽芽開裂 (Cracking)">抽芽開裂 (Cracking)</option>
+                    <option value="表面油污 (Oil Stain)">表面油污 (Oil Stain)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>不良數量 (pcs)</label>
+                <input type="number" id="defectQty" min="1" placeholder="例如: 15" required>
+            </div>
+            <div class="form-group">
+                <label>抽檢總數 (pcs)</label>
+                <input type="number" id="inspectedQty" value="1000" required>
+            </div>
+            <button type="submit" class="btn-submit">➕ 新增紀錄</button>
+        </form>
+
+        <div class="count-tag">已記錄筆數：<span id="recordCount">0</span> 筆</div>
+        
+        <table id="recordTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>型號</th>
+                    <th>不良項目</th>
+                    <th>數量</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+
+        <button id="exportBtn" class="btn-export" style="display:none;" onclick="exportCSV()">📥 下載 CSV 檔 (給 Python 用)</button>
+        <button id="clearBtn" class="btn-clear" style="display:none;" onclick="clearRecords()">🗑️ 清除所有已記錄數據</button>
+    </div>
+
+    <script>
+        document.getElementById('date').valueAsDate = new Date();
+        let records = [];
+
+        document.getElementById('defectForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const record = {
+                Date: document.getElementById('date').value,
+                Shift: document.getElementById('shift').value,
+                Model: document.getElementById('model').value,
+                Defect_Type: document.getElementById('defectType').value,
+                Defect_Qty: document.getElementById('defectQty').value,
+                Inspected_Qty: document.getElementById('inspectedQty').value
+            };
+
+            records.push(record);
+            updateUI();
+            document.getElementById('defectQty').value = '';
+        });
+
+        function updateUI() {
+            document.getElementById('recordCount').innerText = records.length;
+            if (records.length > 0) {
+                document.getElementById('recordTable').style.display = 'table';
+                document.getElementById('exportBtn').style.display = 'block';
+                document.getElementById('clearBtn').style.display = 'block';
+            } else {
+                document.getElementById('recordTable').style.display = 'none';
+                document.getElementById('exportBtn').style.display = 'none';
+                document.getElementById('clearBtn').style.display = 'none';
+            }
+
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            records.forEach((r, index) => {
+                const tr = `<tr>
+                    <td>${r.Date}</td>
+                    <td>${r.Model}</td>
+                    <td>${r.Defect_Type.split(' ')[0]}</td>
+                    <td>${r.Defect_Qty}</td>
+                    <td><button class="btn-del-item" onclick="deleteRecord(${index})">刪除</button></td>
+                </tr>`;
+                tbody.innerHTML += tr;
+            });
+        }
+
+        function deleteRecord(index) {
+            records.splice(index, 1);
+            updateUI();
+        }
+
+        function exportCSV() {
+            if (records.length === 0) return;
+            let csvContent = "\uFEFFDate,Shift,Model,Defect_Type,Defect_Qty,Inspected_Qty\n";
+            records.forEach(r => {
+                csvContent += `${r.Date},${r.Shift},${r.Model},${r.Defect_Type},${r.Defect_Qty},${r.Inspected_Qty}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "stamping_defects.csv";
+            link.click();
+        }
+
+        function clearRecords() {
+            if (confirm("確定要清除所有已輸入的紀錄嗎？此操作無法復原。")) {
+                records = [];
+                updateUI();
+            }
+        }
+    </script>
+</body>
+</html>
